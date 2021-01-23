@@ -1,0 +1,270 @@
+/*
+作者：庄华
+创建时间：2020年12月06日
+本流程块用于实现航班信息爬取并发送邮件的功能，对应设计步骤如下：
+1.	设置日志级别为3级
+2.	打开新chrome，先爬取南航航班，关闭chrome。再打开新chrome，爬取东航的，关闭chrome
+3.	发送结果邮件
+4.  达到出错上线次数，则发送出错告警邮件。
+*/
+
+//引用 python 扩展
+Import utility  
+
+Dim login = GetWebInfo()  //获取网站信息
+Dim err
+
+Log.SetLevel(3)
+
+TracePrint "——————业务处理模块——————"
+
+/*
+功能：获取2个航空公司网站的访问信息
+入参：无
+出参：字典，包含2个航空公司的网址，出发地，到达地信息
+*/
+Function GetWebInfo()
+	Return g_dictLoginWebInfo
+End Function
+
+// TracePrint(login)
+
+// 获取南航信息
+/*
+功能：获取南航的明天的航班信息
+入参：1.网页配置的dict，2.天气信息的dict
+出参：字典，航班信息和执行出错信息的dict
+*/
+Function GetSouthernData(pWebInfo,pWeather)
+	Dim hWeb 
+	Dim flights = []    //存放航空公司的航班信息
+	hWeb = WebBrowser.Create("chrome",pWebInfo["网址"],30000,{"bContinueOnError":False,"iDelayAfter":300,"iDelayBefore":200,"sBrowserPath":"","sStartArgs":""})
+	err = {}
+	Try
+		#icon("@res:diuns4c2-pl7q-vdvh-r98l-a563r3pl3pji.png")
+		Mouse.Action({"wnd":[{"cls":"Chrome_WidgetWin_1","title":"*","app":"chrome"},{"cls":"Chrome_RenderWidgetHostHWND","title":"Chrome Legacy Window"}],"html":[{"tag":"DIV","parentid":"usercookieshow","aaname":"同意"}]},"left","click",1500,{"bContinueOnError":True,"iDelayAfter":300,"iDelayBefore":200,"bSetForeground":True,"sCursorPosition":"Center","iCursorOffsetX":0,"iCursorOffsetY":0,"sKeyModifiers":[],"sSimulate":"uia","bMoveSmoothly":False})
+		#icon("@res:mnh0piqb-8soo-qr1o-01ga-dj48poprre9g.png")
+		UiElement.SetValue({"wnd":[{"cls":"Chrome_WidgetWin_1","title":"*","app":"chrome"},{"cls":"Chrome_RenderWidgetHostHWND","title":"Chrome Legacy Window"}],"html":[{"tag":"INPUT","id":"fDepCity"}]},pWebInfo["出发地"],{"bContinueOnError":False,"iDelayAfter":300,"iDelayBefore":200})
+		#icon("@res:k9jfbc8k-b396-8clh-0495-cjrini7h2p82.png")
+		UiElement.SetValue({"wnd":[{"cls":"Chrome_WidgetWin_1","title":"*","app":"chrome"},{"cls":"Chrome_RenderWidgetHostHWND","title":"Chrome Legacy Window"}],"html":[{"tag":"INPUT","id":"fArrCity"}]},pWebInfo["到达地"],{"bContinueOnError":False,"iDelayAfter":300,"iDelayBefore":200})
+		Dim nextDate   //明天的日期 str yyyy-mm-dd
+		//调用utility中的 GetNextDate方法 获取 明天的日期 str yyyy-mm-dd 参数为： 偏移日期 整形，默认为1
+		nextDate = utility.GetNextDate()
+		#icon("@res:pes5jnc3-iqhk-cfo0-btdm-orrmgbrpr5nu.png")
+		UiElement.SetValue({"wnd":[{"cls":"Chrome_WidgetWin_1","title":"*","app":"chrome"},{"cls":"Chrome_RenderWidgetHostHWND","title":"Chrome Legacy Window"}],"html":[{"tag":"INPUT","id":"fDepDate"}]},nextDate,{"bContinueOnError":False,"iDelayAfter":300,"iDelayBefore":200})
+		#icon("@res:sn0jo0jt-of26-kbiv-9kl0-fjp9006lokj0.png")
+		Mouse.Action({"wnd":[{"cls":"Chrome_WidgetWin_1","title":"*","app":"chrome"},{"cls":"Chrome_RenderWidgetHostHWND","title":"Chrome Legacy Window"}],"html":[{"tag":"A","parentid":"commonbox","aaname":" 立即查询 "}]},"left","click",1500,{"bContinueOnError":False,"iDelayAfter":2000,"iDelayBefore":200,"bSetForeground":True,"sCursorPosition":"Center","iCursorOffsetX":0,"iCursorOffsetY":0,"sKeyModifiers":[],"sSimulate":"uia","bMoveSmoothly":False})
+		
+		Dim i
+		For i=0 To 100
+			
+			Dim flight = {"航空公司":"南航","用户名":"UiBot","密码":"UiBot$laiye2020","到达地天气":pWeather["data"]["forecast"][1]["type"]&" "&pWeather["data"]["forecast"][1]["low"]&"~"&pWeather["data"]["forecast"][1]["high"]}   // 初始化每个航班的数据
+			#icon("@res:8o9hg5js-sid2-cv2e-gh9g-gf1kfj1tj0he.png")
+			sRet = UiElement.GetValue({"html":{"tagName":"div","attrMap":{"css-selector":"body>div>div>div>ul>li>div>div>div"},"index":1 + 6*i},"wnd":[{"app":"chrome","cls":"Chrome_WidgetWin_1","title":"*"},{"cls":"Chrome_RenderWidgetHostHWND","title":"Chrome Legacy Window"}]},{"bContinueOnError":True,"iDelayAfter":50,"iDelayBefore":200})
+			// TracePrint(sRet)
+			If sRet = "" 
+				Break
+			End If
+			sRet = SubStr(sRet,1,6)
+			
+			flight["航班号"] = sRet
+			#icon("@res:ccps25si-vlkq-asu5-80ok-l9u1vusvbru9.png")
+			sRet = UiElement.GetValue({"html":{"tagName":"div","attrMap":{"css-selector":"body>div>div>div>ul>li>div>div"},"index":2+5*i},"wnd":[{"app":"chrome","cls":"Chrome_WidgetWin_1","title":"*"},{"cls":"Chrome_RenderWidgetHostHWND","title":"Chrome Legacy Window"}]},{"bContinueOnError":False,"iDelayAfter":50,"iDelayBefore":200})
+			flight["出发机场"] = SubStr(sRet,6)
+			//调用utility中的 GetNextDateCn 方法 获取 明天的日期 str yyyy年mm月dd日 ,再拼接获取网页的 hh:mm 字符串 参数为： 偏移日期 整形，默认为1
+			flight["出发时间"] = utility.GetNextDateCn() &" "& SubStr(sRet,1,5)
+			
+			#icon("@res:g76f4bo0-9hsn-ctle-cupe-mqdmcas4uud5.png")
+			sRet = UiElement.GetValue({"html":{"tagName":"div","attrMap":{"css-selector":"body>div>div>div>ul>li>div>div"},"index":4+5*i},"wnd":[{"app":"chrome","cls":"Chrome_WidgetWin_1","title":"*"},{"cls":"Chrome_RenderWidgetHostHWND","title":"Chrome Legacy Window"}]},{"bContinueOnError":False,"iDelayAfter":50,"iDelayBefore":200})
+			// TracePrint(sRet)
+			flight["到达机场"] = SubStr(sRet,6)
+			//调用utility中的 GetNextDateCn 方法 获取 明天的日期 str yyyy年mm月dd日 ,再拼接获取网页的 hh:mm 字符串 参数为： 偏移日期 整形，默认为1
+			flight["到达时间"] = utility.GetNextDateCn() &" "& SubStr(sRet,1,5)
+			
+			If InStr(flight["到达机场"],"+1天",1,False)>0
+				flight["到达机场"] = Replace(flight["到达机场"],"+1天","",False)
+				//调用utility中的 GetNextDateCn 方法 获取后天的日期 str yyyy年mm月dd日 ,再拼接获取网页的 hh:mm 字符串 参数为： 偏移日期 整形，默认为1
+				flight["到达时间"] = utility.GetNextDateCn(2) &" "& SubStr(sRet,1,5)
+			End If
+			
+			#icon("@res:0mgd5an2-n937-1nih-8tga-5svvnp0cv0j3.png")
+			sRet = UiElement.GetValue({"wnd":[{"cls":"Chrome_WidgetWin_1","title":"*","app":"chrome"},{"cls":"Chrome_RenderWidgetHostHWND","title":"Chrome Legacy Window"}],"html":[{"tag":"LI","parentid":"zls-common","css-selector":"body>div>div>div>ul>li>div>ul>li","idx":3+4*i}]},{"bContinueOnError":True,"iDelayAfter":50,"iDelayBefore":200})		
+			flight["经济舱价格"] = sRet
+			
+			// TracePrint(flight)
+			flights = push(flights,flight)
+			
+		Next        
+	Catch err
+		flights = []
+		// TracePrint(err)
+		g_dictGlobal["isEx"] = True
+		Log.Error("采集南航数据出错：" & CStr(err))
+	End Try
+	
+	//结束所有谷歌浏览器进程
+	App.Kill("chrome*")
+	Return {"航班":flights,"错误":err}
+End Function
+
+// 获取东航信息
+/*
+功能：获取东航的明天的航班信息
+入参：1.网页配置的dict，2.天气信息的dict
+出参：字典，航班信息和执行出错信息的dict
+*/
+Function GetEastenData(pWebInfo,pWeather)
+	Dim hWeb 
+	Dim flights = []
+	err = {}
+	hWeb = WebBrowser.Create("chrome",pWebInfo["网址"],30000,{"bContinueOnError":False,"iDelayAfter":2000,"iDelayBefore":200,"sBrowserPath":"","sStartArgs":""})
+	Try
+		#icon("@res:a1dq8b1s-p8dc-694t-rtgt-s4pu3lo40t8j.png")
+		UiElement.SetValue({"wnd":[{"cls":"Chrome_WidgetWin_1","title":"*","app":"chrome"},{"cls":"Chrome_RenderWidgetHostHWND","title":"Chrome Legacy Window"}],"html":[{"tag":"INPUT","id":"*_ID_0"}]},pWebInfo["出发地"],{"bContinueOnError":False,"iDelayAfter":300,"iDelayBefore":200})
+		#icon("@res:3itc58u0-iaur-3l0u-1f4l-gj0c2v7tfcrh.png")
+		UiElement.SetValue({"wnd":[{"cls":"Chrome_WidgetWin_1","title":"*","app":"chrome"},{"cls":"Chrome_RenderWidgetHostHWND","title":"Chrome Legacy Window"}],"html":[{"tag":"INPUT","id":"*_ID_1"}]},pWebInfo["到达地"],{"bContinueOnError":False,"iDelayAfter":300,"iDelayBefore":200})
+		Dim nextDate   //明天的日期
+		//调用utility中的 GetNextDate方法 获取 明天的日期 str yyyy-mm-dd ，参数为： 偏移日期 整形，默认为1
+		nextDate = utility.GetNextDate()
+		#icon("@res:hfntomtu-ec1b-963m-jsl9-jfb3u5lhpo37.png")
+		UiElement.SetValue({"wnd":[{"cls":"Chrome_WidgetWin_1","title":"*","app":"chrome"},{"cls":"Chrome_RenderWidgetHostHWND","title":"Chrome Legacy Window"}],"html":[{"tag":"INPUT","id":"depDt"}]},nextDate,{"bContinueOnError":False,"iDelayAfter":300,"iDelayBefore":200})
+		#icon("@res:pq9atovf-sqeu-0k9t-m4ov-v724r13rcuil.png")
+		Mouse.Action({"html":{"tagName":"div","attrMap":{"css-selector":"body>div>div>div"},"index":8},"wnd":[{"app":"chrome","cls":"Chrome_WidgetWin_1","title":"*"},{"cls":"Chrome_RenderWidgetHostHWND","title":"Chrome Legacy Window"}]},"left","dbclick",1500,{"bContinueOnError":False,"iDelayAfter":500,"iDelayBefore":200,"bSetForeground":True,"sCursorPosition":"Center","iCursorOffsetX":0,"iCursorOffsetY":-15,"sKeyModifiers":[],"sSimulate":"message","bMoveSmoothly":False})
+		#icon("@res:a25na3ps-ri68-k68j-b870-8hs64j0lk5f3.png")
+		Mouse.Action({"wnd":[{"cls":"Chrome_WidgetWin_1","title":"*","app":"chrome"},{"cls":"Chrome_RenderWidgetHostHWND","title":"Chrome Legacy Window"}],"html":[{"tag":"BUTTON","id":"btn_flight_search"}]},"left","click",1500,{"bContinueOnError":False,"iDelayAfter":2000,"iDelayBefore":200,"bSetForeground":True,"sCursorPosition":"Center","iCursorOffsetX":0,"iCursorOffsetY":0,"sKeyModifiers":[],"sSimulate":"message","bMoveSmoothly":False})
+		
+		Dim i
+		For i=0 To 100
+			Dim flight = {"航空公司":"东航","用户名":"UiBot","密码":"UiBot$laiye2020","到达地天气":pWeather["data"]["forecast"][1]["type"]&" "&pWeather["data"]["forecast"][1]["low"]&"~"&pWeather["data"]["forecast"][1]["high"]}  //初始化每个航班的信息
+			#icon("@res:k4bigbkf-r0mb-76l8-q7nr-pnlv1r5kf9nt.png")
+			sRet = UiElement.GetValue({"html":{"tagName":"ARTICLE","attrMap":{"tag":"ARTICLE","id":"sylvanas_"&CStr(i+4)},"index":0},"wnd":[{"app":"chrome","cls":"Chrome_WidgetWin_1","title":"*"},{"cls":"Chrome_RenderWidgetHostHWND","title":"Chrome Legacy Window"}]},{"bContinueOnError":True,"iDelayAfter":50,"iDelayBefore":200})
+			If sRet = "" 
+				Break
+			End If
+			sRet = SubStr(sRet,8,6)
+			flight["航班号"] = sRet
+			
+			#icon("@res:n7co6s5a-mks9-oeub-qfcm-llhv47lc9tm4.png")
+			sRet = UiElement.GetValue({"html":{"tagName":"div","attrMap":{"css-selector":"body>section>section>hgroup>div>div>article>section>div>div"},"index":2 + i*4},"wnd":[{"app":"chrome","cls":"Chrome_WidgetWin_1","title":"*"},{"cls":"Chrome_RenderWidgetHostHWND","title":"Chrome Legacy Window"}]},{"bContinueOnError":False,"iDelayAfter":50,"iDelayBefore":200})
+			// TracePrint(sRet)
+			flight["出发机场"] = Trim(SubStr(sRet,6) , " ")
+			//调用utility中的 GetNextDateCn 方法 获取 明天的日期 str yyyy年mm月dd日 ,再拼接获取网页的 hh:mm 字符串 ，参数为： 偏移日期 整形，默认为1
+			flight["出发时间"] = utility.GetNextDateCn() &" "& SubStr(sRet,1,5)
+			
+			#icon("@res:slttgagl-oluu-kgk1-rm0j-agdoikiinacd.png")
+			sRet = UiElement.GetValue({"html":{"tagName":"div","attrMap":{"css-selector":"body>section>section>hgroup>div>div>article>section>div>div"},"index":4+4*i},"wnd":[{"app":"chrome","cls":"Chrome_WidgetWin_1","title":"*"},{"cls":"Chrome_RenderWidgetHostHWND","title":"Chrome Legacy Window"}]},{"bContinueOnError":False,"iDelayAfter":50,"iDelayBefore":200})
+			// TracePrint(sRet)
+			flight["到达机场"] = SubStr(sRet,6)
+			//调用utility中的 GetNextDateCn 方法 获取 明天的日期 str yyyy年mm月dd日 ,再拼接获取网页的 hh:mm 字符串 参数为： 偏移日期 整形，默认为1
+			flight["到达时间"] = utility.GetNextDateCn() &" "& SubStr(sRet,1,5)	
+			
+			If InStr(flight["到达机场"],"+1天",1,False)>0
+				//调用utility中的 GetDatetimeStr 方法将 文本中的“yyyy-mm-dd hh:mm”格式日期，并转为 “yyyy年mm月dd日 hh:mm”  参数为： 带有时间的文本
+				Dim dateData = utility.GetDatetimeStr(sRet)   //获取后天的日期 ["yyyy年mm月dd日 hh:mm" ,"yyyy-mm-dd hh:mm"]
+				flight["到达时间"] = dateData[0]
+				flight["到达机场"] = Replace( SubStr(sRet,InStr(sRet,dateData[1],0,False)), dateData[1] , "" , False )
+			End If
+			
+			#icon("@res:mlb430of-shhi-itca-413s-oirbqqdatiil.png")
+			sRet = UiElement.GetValue({"wnd":[{"cls":"Chrome_WidgetWin_1","title":"*","app":"chrome"},{"cls":"Chrome_RenderWidgetHostHWND","title":"Chrome Legacy Window"}],"html":[{"tag":"DD","name":"lowest"}]},{"bContinueOnError":True,"iDelayAfter":50,"iDelayBefore":200})		
+			flight["经济舱价格"] = Replace( Replace(sRet,"￥ ","¥",False) , "," , "" , False )
+			// TracePrint(flight)        
+			
+			// TracePrint(flight)
+			flights = push(flights,flight)
+			
+		Next
+	Catch err
+		flights = []
+		// TracePrint(err)
+		g_dictGlobal["isEx"] = True
+		Log.Error("采集东航数据出错：" & CStr(err))
+	End Try
+	//结束所有谷歌浏览器进程
+	App.Kill("chrome*")
+	Return {"航班":flights,"错误":err}
+End Function
+
+Dim sRet = ""
+Dim southernData   //接收南航的查询结果
+Dim eastenData     //接收南航的查询结果
+
+//判读出异常后，将g_dictGlobal["isEx"]设置为TRUE
+g_dictGlobal["isEx"] = False
+
+// 调用utility中的 GetWeather 方法 获取到达当天天气 ， 无参数
+Dim weather = utility.GetWeather()   //获取到达当天天气
+// TracePrint(weather)
+
+Log.Info("开始获取南航数据")
+southernData = GetSouthernData(login["南航"],weather)
+// TracePrint("southernData=",southernData)
+err = southernData["错误"]
+// TracePrint(g_dictGlobal["isEx"])
+Log.Info("获取南航数据结束")
+
+// 如果获取南航数据没出错
+If Not g_dictGlobal["isEx"]
+	Log.Info("开始获取东航航数据")
+	eastenData = GetEastenData(login["东航"],weather)
+	err = eastenData["错误"]
+	// TracePrint("eastenData=",eastenData)
+	Log.Info("获取东航航数据结束")
+End If
+
+// 如果获取南航东航数据都没出错
+If Not g_dictGlobal["isEx"]
+	Log.Info("如果获取南航东航数据都没出错,发送采集数据的邮件")
+	// 发送采集数据的邮件
+	Dim columns = ["序号","航空公司","航班号","出发时间","到达时间","经济舱价格","出发机场","到达机场","到达地天气","用户名","密码"]
+	// 调用utility中的 ToExcel 方法 将航班数据写为excel 参数为 ： 航班数据 dict 的数组， 要写入的excel文件的路径和文件名 
+	utility.ToExcel(concat(southernData["航班"],eastenData["航班"]),columns,g_dictMailData["附件"] )
+	Log.Info("开始发送采集数据邮件")
+	// TracePrint(g_dictMailData)
+	PublicBlock.SendDoneMail(g_dictMailData)
+	Log.Info("发送采集数据邮件结束")
+Else
+	// 如果采集南航或东航数据出错，并超出错误次数上限,发告警邮件
+	Log.Info("如果采集南航或东航数据出错，并超出错误次数上限,发告警邮件")
+	If g_iRetryNum >= g_dictGlobal["maxRetryNum"]
+		Log.Info("开始发送出错告警邮件")
+		g_dictMailData["错误"] = err
+		// TracePrint(g_dictMailData)
+		PublicBlock.SendErrMail(g_dictMailData)
+		Log.Info("发送出错告警邮件结束")
+	End If
+End If
+
+TracePrint "——————退出处理模块——————"
+
+// 单元测试
+/*
+    1.测试执行出错超限，正确结果应为收到错误告警邮件
+    2.测试执行无出错，正确结果应为收到完整的航班信息邮件
+*/
+UnitTest
+	TracePrint("utest")
+	Dim g_iRetryNum = 3
+	
+	Dim g_dictGlobal = {}
+	
+	//流程异常记录
+	g_dictGlobal["isEx"] = True
+	//设定重试次数，有Commander一般放在Commander上，没有Commander一般放在本地Config文件中
+	g_dictGlobal["maxRetryNum"] = 2
+	
+	// 航班查询配置数据
+	Dim g_dictLoginWebInfo = {  "南航":{"网址":"https://www.csair.com/cn/","出发地":"广州","到达地":"北京"},
+	"东航":{"网址":"http://www.ceair.com/"    ,"出发地":"广州","到达地":"北京"}}
+	
+	// 邮箱发送邮件配置
+	Dim g_dictMailData={}
+	g_dictMailData["smtp地址"]       = "smtp.126.com"
+	g_dictMailData["账号"]           = "xxx@126.com"
+	g_dictMailData["密码"]           = "OCYQTXFSDFVNGSCJ"
+	g_dictMailData["发件人邮箱地址"]  = "XXX@126.com"
+	g_dictMailData["收件人邮箱地址"]  = "XXX@126.com"
+	g_dictMailData["附件"]           = "d:\\飞机票查询.xlsx"
+	
+End UnitTest
+

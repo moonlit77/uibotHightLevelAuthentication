@@ -1,0 +1,68 @@
+/*
+作者：庄华
+创建时间：2020年12月06日
+本流程块用于公共方法：
+1.  发送爬取结果邮件，带附件
+2.  发送执行出错告警邮件，无附件
+*/
+
+Dim bRet
+
+/*
+功能：发送出错告警邮件
+入参：邮件内容的dict 对象，里面包含出错的完整错误字典信息
+出参：无
+*/
+Function SendErrMail(mailData)
+	// 定义标题变量
+	Dim sTitle = "流程异常_获取航班错误 来也公司_张三"
+	// 定义正文
+	Dim sContent = ""
+	
+	// dim mailData = {}
+	// mailData["错误"] = {"File" : "业务处理模块.task","Line" : 31,"Message" : "模块 UiElement.UiElementAuto.SetValue 调用出错：调用的目标发生了异常。\n元素未找到","_InternalState_" : 1}
+	
+	sContent = sContent & "流程名称：uibot高级认证考试-获取航班信息 \r\n"
+	sContent = sContent & "异常流程块名：" & mailData["错误"]["File"] & " \r\n"
+	sContent = sContent & "异常代码行号：" & mailData["错误"]["Line"] & " \r\n"
+	sContent = sContent & "异常报错信息：" & Replace( mailData["错误"]["Message"],"\n","",False) & " \r\n"
+	
+	// TracePrint(sContent)
+	
+	bRet = Mail.SendEx(mailData["smtp地址"],25,False,mailData["账号"],mailData["密码"],mailData["发件人邮箱地址"],mailData["收件人邮箱地址"],"",sTitle,sContent,"")
+End Function 
+
+/*
+功能：发送出航班信息警邮件
+入参：邮件内容的dict 对象，里面包含输出excel的文件路径
+出参：无
+*/
+Function SendDoneMail(mailData)
+	// 定义标题变量
+	Dim sTitle = "来也公司_张三"
+	// 定义正文
+	Dim sContent = ""
+	
+	// 填写正文
+	sContent = sContent & "Dear 来也 \r\n"
+	sContent = sContent & "XXX 公司_张三_13800000008 程序运行结果，请查阅 \r\n"
+	
+	bRet = Mail.SendEx(mailData["smtp地址"],25,False,mailData["账号"],mailData["密码"],mailData["发件人邮箱地址"],mailData["收件人邮箱地址"],"",sTitle,sContent,mailData["附件"])
+End Function 
+
+UnitTest
+    dim mData = {"smtp地址" : "smtp.126.com",
+                "发件人邮箱地址" : "p33306308@126.com",
+                "密码" : "OCYQTASKUXVNGSCJ",
+                "收件人邮箱地址" : "p33306308@126.com",
+                "账号" : "p33306308@126.com",
+                "错误" : {  "File" : "业务处理模块.task",
+                            "Line" : 118,
+                            "Message" : "模块 UiElement.UiElementAuto.SetValue 调用出错：调用的目标发生了异常。\n元素未找到",
+                            "_InternalState_" : 1},
+                "附件" : "d:\\飞机票查询.xlsx"}
+    // 测试发送错误告警邮件
+    SendErrMail(mData)
+    // 测试发送航班数据邮件
+    SendDoneMail(mData)
+End UnitTest

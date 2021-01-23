@@ -1,0 +1,33 @@
+/*
+作者：庄华
+创建时间：2020年12月06日
+初始化操作
+初始化全局字典：航班查询配置数据，邮箱发送邮件配置
+*/
+
+TracePrint "——————进入初始化模块——————"
+
+g_iRetryNum = g_iRetryNum + 1
+
+g_dictGlobal = {}
+
+//流程异常记录
+g_dictGlobal["isEx"] = False
+//设定重试次数，有Commander一般放在Commander上，没有Commander一般放在本地Config文件中
+g_dictGlobal["maxRetryNum"] = 2
+
+// 航班查询配置数据
+g_dictLoginWebInfo = {  "南航":{"网址":"https://www.csair.com/cn/","出发地":"广州","到达地":"北京"},
+                        "东航":{"网址":"http://www.ceair.com/"    ,"出发地":"广州","到达地":"北京"}}
+
+// 邮箱发送邮件配置
+g_dictMailData={}
+g_dictMailData["smtp地址"]       = "smtp.126.com"
+g_dictMailData["账号"]           = "p33306308@126.com"
+g_dictMailData["密码"]           = "OCYQTASKUXVNGSCJ"
+g_dictMailData["发件人邮箱地址"]  = "p33306308@126.com"
+g_dictMailData["收件人邮箱地址"]  = "p33306308@126.com"
+g_dictMailData["附件"]           = "d:\\飞机票查询.xlsx"
+
+TracePrint "——————退出初始化模块——————"
+

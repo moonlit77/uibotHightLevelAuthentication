@@ -1,0 +1,6 @@
+dim i 
+dim arrRet = []
+For i=0 To 10
+    arrRet = push(arrRet,i)
+    TracePrint(arrRet)
+Next
